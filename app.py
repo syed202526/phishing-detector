@@ -16,10 +16,16 @@ import time
 import os
 
 # ===============================
-# Load Model (PRODUCTION READY)
+# Load Model
 # ===============================
 MODEL_PATH = os.path.join(os.path.dirname(__file__), "model.pkl")
 model = joblib.load(MODEL_PATH)
+
+# ===============================
+# Session State Init
+# ===============================
+if "history" not in st.session_state:
+    st.session_state.history = []
 
 # ===============================
 # Feature Extraction
@@ -39,72 +45,69 @@ def extract_features(url):
         url.count("&"),
         url.count("|"),
         int(ext.domain in url),
-        int("©" in url),
         1,
         365,
         1000,
+        0,
         0
     ]
     return np.array(features).reshape(1, -1)
 
 # ===============================
-# UI Setup
+# UI
 # ===============================
 st.set_page_config(page_title="Phishing Detector", layout="wide")
 st.title("🔒 Phishing Website Detection System")
 st.markdown("### 🚀 AI-Powered Security Dashboard")
 
-# ===============================
-# Tabs
-# ===============================
 tab1, tab2, tab3 = st.tabs(["🔍 URL Checker", "📊 Dashboard", "⚙️ Manual Input"])
 
 # ===============================
-# TAB 1: URL Checker
+# TAB 1
 # ===============================
 with tab1:
-    st.subheader("🔍 Check URL")
-
     url_input = st.text_input("Enter Website URL:")
 
     if st.button("Analyze URL"):
         if url_input:
+
             with st.spinner("Analyzing..."):
                 time.sleep(1)
 
                 features = extract_features(url_input)
+
                 prediction = model.predict(features)[0]
-                prob = model.predict_proba(features)[0][1]
 
-                # History
-                if "history" not in st.session_state:
-                    st.session_state.history = []
+                # SAFE handling predict_proba
+                try:
+                    prob = model.predict_proba(features)[0][1]
+                except:
+                    prob = 0.0
 
-                st.session_state.history.append((url_input, prediction, prob))
+                st.session_state.history.append((url_input, int(prediction), float(prob)))
 
-                # Result
                 if prediction == 1:
                     st.error(f"⚠️ Phishing Website (Confidence: {prob:.2f})")
                 else:
-                    st.success(f"✅ Legitimate Website (Risk Score: {prob:.2f})")
+                    st.success(f"✅ Legitimate Website (Score: {prob:.2f})")
 
-                # Download result
-                result_text = f"URL: {url_input}\nPrediction: {prediction}\nConfidence: {prob:.2f}"
-                st.download_button("📥 Download Result", result_text, "result.txt")
+                st.download_button(
+                    "📥 Download Result",
+                    f"URL: {url_input}\nPrediction: {prediction}\nConfidence: {prob:.2f}",
+                    file_name="result.txt"
+                )
 
         else:
-            st.warning("⚠️ Please enter a URL")
+            st.warning("Please enter a URL")
 
-    # History
-    if "history" in st.session_state:
-        st.subheader("📜 Prediction History")
-        st.write(st.session_state.history)
+    st.subheader("📜 History")
+    st.write(st.session_state.history)
 
 # ===============================
-# TAB 2: Dashboard
+# TAB 2
 # ===============================
 with tab2:
-    st.subheader("📊 Model Performance Comparison")
+    st.subheader("📊 Model Performance")
 
     models = ["Logistic Regression", "Random Forest", "SVM"]
     accuracy = [0.91, 0.96, 0.93]
@@ -112,12 +115,11 @@ with tab2:
     fig, ax = plt.subplots()
     ax.bar(models, accuracy)
     ax.set_ylabel("Accuracy")
-    ax.set_title("Model Comparison")
     st.pyplot(fig)
 
     st.subheader("📈 Feature Importance")
 
-    features = ["URL Length", "Dots", "Hyphens", "Special Char"]
+    features = ["URL Length", "Hostname", "Digits", "Dots"]
     importance = [30, 25, 20, 25]
 
     fig2, ax2 = plt.subplots()
@@ -125,17 +127,15 @@ with tab2:
     st.pyplot(fig2)
 
 # ===============================
-# TAB 3: Manual Input
+# TAB 3
 # ===============================
 with tab3:
-    st.subheader("⚙️ Manual Feature Input")
-
     url_length = st.number_input("URL Length", 0, 500, 50)
     hostname_length = st.number_input("Hostname Length", 0, 100, 20)
-    dots = st.number_input("Number of Dots", 0, 20, 2)
-    hyphens = st.number_input("Number of Hyphens", 0, 20, 1)
+    dots = st.number_input("Dots", 0, 20, 2)
+    hyphens = st.number_input("Hyphens", 0, 20, 1)
 
-    if st.button("Predict from Features"):
+    if st.button("Predict"):
         features = np.array([
             url_length,
             hostname_length,
@@ -154,11 +154,11 @@ with tab3:
             st.success("✅ Legitimate Website")
 
 # ===============================
-# Sidebar
+# SIDEBAR
 # ===============================
-st.sidebar.title("⚙️ Settings")
+st.sidebar.title("Settings")
 
-if st.sidebar.checkbox("Show Model Parameters"):
+if st.sidebar.checkbox("Show Model Params"):
     st.sidebar.json(model.get_params())
 
-st.sidebar.info("Developed for Final Year Project 🚀")
+st.sidebar.info("Final Year Project 🚀")
